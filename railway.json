@@ -1,0 +1,10 @@
+{
+    "deploy": {
+      "services": [
+        {
+          "name": "keycloak",
+          "type": "docker-compose"
+        }
+      ]
+    }
+  }
