@@ -15,9 +15,11 @@ ENV KC_IMPORT=/opt/keycloak/data/import/Ahssane-voyage-realm.json
 ENV KC_DB_POOL_INITIAL_SIZE=3
 ENV KC_DB_POOL_MIN_SIZE=3
 ENV KC_DB_POOL_MAX_SIZE=10
+ENV KC_HOSTNAME_STRICT=false
+ENV KC_HTTP_ENABLED=true
 
 # Expose the port
 EXPOSE 8080
 
 # Start Keycloak
-ENTRYPOINT ["/opt/keycloak/bin/kc.sh", "start", "--optimized", "--import-realm"]
+ENTRYPOINT ["/opt/keycloak/bin/kc.sh", "start-dev", "--import-realm"]
