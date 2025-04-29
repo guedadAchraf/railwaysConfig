@@ -1,5 +1,8 @@
 {
-  "build": {
-    "builder": "docker"
+    "build": {
+      "builder": "docker"
+    },
+    "deploy": {
+      "startTimeout": 180000
+    }
   }
-}

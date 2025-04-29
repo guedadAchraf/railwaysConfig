@@ -1,0 +1,33 @@
+version: '3.8'
+
+services:
+  keycloak:
+    image: quay.io/keycloak/keycloak:23.0.7
+    container_name: keycloak
+    command: start --optimized --import-realm
+    environment:
+      # Neon DB Configuration
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://ep-gentle-pine-a4segogl-pooler.us-east-1.aws.neon.tech:5432/neondb?sslmode=require
+      KC_DB_USERNAME: neondb_owner
+      KC_DB_PASSWORD: npg_tkcfe73ALCWK
+      
+      # Keycloak Admin
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin123
+      
+      # Network Settings
+      KC_HOSTNAME: ${HOSTNAME}
+      KC_PROXY: edge
+      KC_IMPORT: /opt/keycloak/data/import/Ahssane-voyage-realm.json
+      
+      # Connection Pool
+      KC_DB_POOL_INITIAL_SIZE: 3
+      KC_DB_POOL_MIN_SIZE: 3
+      KC_DB_POOL_MAX_SIZE: 10
+      
+    volumes:
+      - ./Ahssane-voyage-realm.json:/opt/keycloak/data/import/Ahssane-voyage-realm.json
+    ports:
+      - "8080:8080"
+    restart: unless-stopped

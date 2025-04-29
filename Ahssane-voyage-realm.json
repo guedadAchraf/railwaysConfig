@@ -1,36 +1,35 @@
 {
-  "realm": "Ahssane-voyage",
-  "enabled": true,
-  "users": [
-    {
-      "username": "achraf",
-      "enabled": true,
-      "emailVerified": true,
-      "credentials": [
-        {
-          "type": "password",
-          "value": "achraf123",
-          "temporary": false
-        }
-      ],
-      "realmRoles": ["administrateur"]
-    }
-  ],
-  "roles": {
-    "realm": {
-      "administrateur": {
-        "description": "Administrateur role with elevated privileges"
+    "realm": "Ahssane-voyage",
+    "enabled": true,
+    "users": [
+      {
+        "username": "achraf",
+        "enabled": true,
+        "emailVerified": true,
+        "credentials": [
+          {
+            "type": "password",
+            "value": "achraf123",
+            "temporary": false
+          }
+        ],
+        "realmRoles": ["administrateur"]
       }
-    }
-  },
-  "clients": [
-    {
-      "clientId": "voyage-client",
-      "enabled": true,
-      "publicClient": true,
-      "redirectUris": ["*"],
-      "protocol": "openid-connect",
-      "webOrigins": ["*"]
-    }
-  ]
-}
+    ],
+    "roles": {
+      "realm": {
+        "administrateur": {
+          "description": "Admin role"
+        }
+      }
+    },
+    "clients": [
+      {
+        "clientId": "voyage-client",
+        "enabled": true,
+        "publicClient": true,
+        "redirectUris": ["*"],
+        "webOrigins": ["*"]
+      }
+    ]
+  }
