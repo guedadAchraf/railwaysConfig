@@ -31,5 +31,16 @@
         "redirectUris": ["*"],
         "webOrigins": ["*"]
       }
-    ]
-  }
+    ],"webOrigins": [
+        "https://travel-agency-frontend-xi.vercel.app/",
+        "http://localhost:4200"
+      ],
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": true
+    
+    
+}
+  
+  
