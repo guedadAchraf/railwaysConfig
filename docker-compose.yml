@@ -1,0 +1,35 @@
+version: "3.8"
+
+services:
+  keycloak:
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://ep-gentle-pine-a4segogl-pooler.us-east-1.aws.neon.tech/neondb?sslmode=require
+      KC_DB_USERNAME: neondb_owner
+      KC_DB_PASSWORD: npg_tkcfe73ALCWK
+    volumes:
+      - ./realm-export.json:/opt/keycloak/data/import/realm-export.json
+    command:
+      - start-dev
+      - --import-realm
+    depends_on:
+      - neon-db
+
+  neon-db:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: neondb
+      POSTGRES_USER: neondb_owner
+      POSTGRES_PASSWORD: npg_tkcfe73ALCWK
+    ports:
+      - "5432:5432"
+    # volumes:
+    #   - postgres_data:/var/lib/postgresql/data
+
+# volumes:
+#   postgres_data:
