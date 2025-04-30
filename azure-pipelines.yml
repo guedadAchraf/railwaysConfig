@@ -1,0 +1,56 @@
+trigger:
+  - main
+
+variables:
+  # Container registry service connection established during pipeline creation
+  dockerRegistryServiceConnection: 'your-acr-service-connection'
+  imageRepository: 'your-image-name'
+  containerRegistry: 'your-acr-name.azurecr.io'
+  dockerfilePath: '$(Build.SourcesDirectory)/Dockerfile'
+  tag: '$(Build.BuildId)'
+  
+  # Agent VM image name
+  vmImageName: 'ubuntu-latest'
+
+stages:
+- stage: Build
+  displayName: Build and push stage
+  jobs:  
+  - job: Build
+    displayName: Build
+    pool:
+      vmImage: $(vmImageName)
+    steps:
+    - task: Docker@2
+      displayName: Build and push an image to container registry
+      inputs:
+        command: buildAndPush
+        repository: $(imageRepository)
+        dockerfile: $(dockerfilePath)
+        containerRegistry: $(dockerRegistryServiceConnection)
+        tags: |
+          $(tag)
+          latest
+
+- stage: Deploy
+  displayName: Deploy stage
+  dependsOn: Build
+  condition: succeeded()
+  jobs:
+  - job: Deploy
+    displayName: Deploy
+    pool:
+      vmImage: $(vmImageName)
+    steps:
+    - task: AzureWebAppContainer@1
+      inputs:
+        azureSubscription: 'your-azure-subscription'
+        appName: 'your-app-service-name'
+        containers: '$(containerRegistry)/$(imageRepository):$(tag)'
+        appSettings: |
+          [
+            {
+              "name": "WEBSITES_PORT",
+              "value": "3000"
+            }
+          ] 
