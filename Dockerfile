@@ -16,15 +16,12 @@ ENV KC_DB_PASSWORD=npg_tkcfe73ALCWK
 ENV KC_HOSTNAME_STRICT=false
 ENV KC_HTTP_ENABLED=true
 ENV KC_PROXY=edge
-ENV KC_HOSTNAME_ADMIN_URL=https://strong-heart-env-travel-agency.up.railway.app/
-ENV KC_HOSTNAME_URL=https://strong-heart-env-travel-agency.up.railway.app/
-ENV JAVA_OPTS="-Xms64m -Xmx256m -XX:MetaspaceSize=64m -XX:MaxMetaspaceSize=128m"
 
-# Build optimized package for production deployment
-RUN /opt/keycloak/bin/kc.sh build
+# JVM memory settings
+ENV JAVA_OPTS="-Xms64m -Xmx256m -XX:MetaspaceSize=64m -XX:MaxMetaspaceSize=128m"
 
 # Expose default Keycloak port
 EXPOSE 8080
 
-# Start Keycloak with specific options
-CMD ["/opt/keycloak/bin/kc.sh", "start-dev", "--import-realm"]
+# Start Keycloak in development mode
+CMD ["sh", "-c", "/opt/keycloak/bin/kc.sh start-dev --import-realm"]
