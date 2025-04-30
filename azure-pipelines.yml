@@ -2,10 +2,10 @@ trigger:
   - main
 
 variables:
-  # Container registry service connection established during pipeline creation
-  dockerRegistryServiceConnection: 'your-acr-service-connection'
-  imageRepository: 'your-image-name'
-  containerRegistry: 'your-acr-name.azurecr.io'
+  # Update these values with your actual service connection names
+  dockerRegistryServiceConnection: 'acr-connection'  # Use the name you gave to your ACR service connection
+  imageRepository: 'devopsachraf'  # Your image name
+  containerRegistry: 'yourregistry.azurecr.io'  # Your ACR registry URL
   dockerfilePath: '$(Build.SourcesDirectory)/Dockerfile'
   tag: '$(Build.BuildId)'
   
@@ -44,8 +44,8 @@ stages:
     steps:
     - task: AzureWebAppContainer@1
       inputs:
-        azureSubscription: 'your-azure-subscription'
-        appName: 'your-app-service-name'
+        azureSubscription: 'azure-subscription-connection'  # Use the name you gave to your Azure subscription service connection
+        appName: 'your-app-service-name'  # Your Azure App Service name
         containers: '$(containerRegistry)/$(imageRepository):$(tag)'
         appSettings: |
           [
@@ -53,5 +53,4 @@ stages:
               "name": "WEBSITES_PORT",
               "value": "3000"
             }
-          
           ] 
