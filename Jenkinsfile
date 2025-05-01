@@ -12,11 +12,11 @@ pipeline {
         stage('Verify Environment') {
             steps {
                 script {
-                    sh '''
+                    sh '''#!/bin/bash
                         echo "Checking required tools..."
-                        docker --version || { echo "Docker not found!"; exit 1 }
-                        aws --version || { echo "AWS CLI not found!"; exit 1 }
-                        docker-compose --version || echo "Warning: docker-compose not found"
+                        which docker || { echo "Docker not found!"; exit 1; }
+                        which aws || { echo "AWS CLI not found!"; exit 1; }
+                        which docker-compose || echo "Warning: docker-compose not found"
                     '''
                 }
             }
@@ -103,7 +103,7 @@ pipeline {
         }
         failure {
             echo "Pipeline failed"
-            slackSend color: 'danger', message: "Pipeline failed: ${env.JOB_NAME} #${env.BUILD_NUMBER}"
+            // Removed slackSend as it's not available
         }
     }
 }
