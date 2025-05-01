@@ -1,11 +1,13 @@
 pipeline {
-    agent any
+    agent {
+        label 'docker' // Make sure your agent with Docker is labeled 'docker'
+    }
     
     environment {
-        AWS_REGION = 'eu-north-1'  // Stockholm region
-        AWS_ECR_REPO = 'keycloak-app'  // Your ECR repository name
+        AWS_REGION = 'eu-north-1'
+        AWS_ECR_REPO = 'keycloak-app'
         DOCKER_IMAGE_TAG = "keycloak:${BUILD_NUMBER}"
-        KEYCLOAK_VERSION = '23.0.0'  // Set your desired Keycloak version
+        KEYCLOAK_VERSION = '23.0.0'
     }
     
     stages {
@@ -18,6 +20,8 @@ pipeline {
         stage('Build Docker Image') {
             steps {
                 script {
+                    // Verify Docker is available
+                    sh 'docker --version'
                     sh "docker build --build-arg KEYCLOAK_VERSION=${KEYCLOAK_VERSION} -t ${DOCKER_IMAGE_TAG} ."
                 }
             }
@@ -27,20 +31,12 @@ pipeline {
             steps {
                 script {
                     withAWS(region: "${AWS_REGION}", credentials: 'aws-credentials') {
-                        // Get AWS account ID from credentials
                         def awsAccountId = sh(script: 'aws sts get-caller-identity --query Account --output text', returnStdout: true).trim()
                         
-                        // Login to ECR
-                        sh "aws ecr get-login-password | docker login --username AWS --password-stdin ${awsAccountId}.dkr.ecr.${AWS_REGION}.amazonaws.com"
-                        
-                        // Create repository if it doesn't exist
                         sh """
+                            aws ecr get-login-password | docker login --username AWS --password-stdin ${awsAccountId}.dkr.ecr.${AWS_REGION}.amazonaws.com
                             aws ecr describe-repositories --repository-names ${AWS_ECR_REPO} || \
                             aws ecr create-repository --repository-name ${AWS_ECR_REPO}
-                        """
-                        
-                        // Tag and push images
-                        sh """
                             docker tag ${DOCKER_IMAGE_TAG} ${awsAccountId}.dkr.ecr.${AWS_REGION}.amazonaws.com/${AWS_ECR_REPO}:${BUILD_NUMBER}
                             docker tag ${DOCKER_IMAGE_TAG} ${awsAccountId}.dkr.ecr.${AWS_REGION}.amazonaws.com/${AWS_ECR_REPO}:latest
                             docker push ${awsAccountId}.dkr.ecr.${AWS_REGION}.amazonaws.com/${AWS_ECR_REPO}:${BUILD_NUMBER}
@@ -70,19 +66,10 @@ pipeline {
     
     post {
         always {
-            node('any') {
-                script {
-                    sh '''
-                        docker system prune -f || true
-                    '''
-                }
+            script {
+                // Clean up Docker resources
+                sh 'docker system prune -f || true'
             }
-        }
-        success {
-            echo "Successfully built and deployed Keycloak docker container"
-        }
-        failure {
-            echo "Failed to build or deploy Keycloak docker container"
         }
     }
 }
