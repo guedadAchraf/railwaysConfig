@@ -95,4 +95,3 @@ pipeline {
             echo "Failed to build or deploy Keycloak docker container"
         }
     }
-}
