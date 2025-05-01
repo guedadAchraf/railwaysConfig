@@ -3,7 +3,6 @@ pipeline {
     
     environment {
         AWS_REGION = 'eu-north-1'  // Stockholm region
-        AWS_ACCOUNT_ID = credentials('aws-account-id')
         AWS_ECR_REPO = 'keycloak-app'  // Your ECR repository name
         DOCKER_IMAGE_TAG = "keycloak:${BUILD_NUMBER}"
         KEYCLOAK_VERSION = '23.0.0'  // Set your desired Keycloak version
@@ -13,21 +12,6 @@ pipeline {
         stage('Checkout') {
             steps {
                 checkout scm
-            }
-        }
-        
-        stage('Configure AWS CLI') {
-            steps {
-                withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', 
-                                credentialsId: 'aws-credentials',
-                                accessKeyVariable: 'AWS_ACCESS_KEY_ID', 
-                                secretKeyVariable: 'AWS_SECRET_ACCESS_KEY']]) {
-                    sh '''
-                        aws configure set region ${AWS_REGION}
-                        aws configure set aws_access_key_id ${AWS_ACCESS_KEY_ID}
-                        aws configure set aws_secret_access_key ${AWS_SECRET_ACCESS_KEY}
-                    '''
-                }
             }
         }
         
@@ -42,15 +26,27 @@ pipeline {
         stage('Push to ECR') {
             steps {
                 script {
-                    sh '''
-                        aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com
-                        aws ecr describe-repositories --repository-names ${AWS_ECR_REPO} --region ${AWS_REGION} || \
-                        aws ecr create-repository --repository-name ${AWS_ECR_REPO} --region ${AWS_REGION}
-                        docker tag ${DOCKER_IMAGE_TAG} ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${AWS_ECR_REPO}:${BUILD_NUMBER}
-                        docker tag ${DOCKER_IMAGE_TAG} ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${AWS_ECR_REPO}:latest
-                        docker push ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${AWS_ECR_REPO}:${BUILD_NUMBER}
-                        docker push ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${AWS_ECR_REPO}:latest
-                    '''
+                    withAWS(region: "${AWS_REGION}", credentials: 'aws-credentials') {
+                        // Get AWS account ID from credentials
+                        def awsAccountId = sh(script: 'aws sts get-caller-identity --query Account --output text', returnStdout: true).trim()
+                        
+                        // Login to ECR
+                        sh "aws ecr get-login-password | docker login --username AWS --password-stdin ${awsAccountId}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+                        
+                        // Create repository if it doesn't exist
+                        sh """
+                            aws ecr describe-repositories --repository-names ${AWS_ECR_REPO} || \
+                            aws ecr create-repository --repository-name ${AWS_ECR_REPO}
+                        """
+                        
+                        // Tag and push images
+                        sh """
+                            docker tag ${DOCKER_IMAGE_TAG} ${awsAccountId}.dkr.ecr.${AWS_REGION}.amazonaws.com/${AWS_ECR_REPO}:${BUILD_NUMBER}
+                            docker tag ${DOCKER_IMAGE_TAG} ${awsAccountId}.dkr.ecr.${AWS_REGION}.amazonaws.com/${AWS_ECR_REPO}:latest
+                            docker push ${awsAccountId}.dkr.ecr.${AWS_REGION}.amazonaws.com/${AWS_ECR_REPO}:${BUILD_NUMBER}
+                            docker push ${awsAccountId}.dkr.ecr.${AWS_REGION}.amazonaws.com/${AWS_ECR_REPO}:latest
+                        """
+                    }
                 }
             }
         }
@@ -58,11 +54,15 @@ pipeline {
         stage('Deploy with Docker Compose') {
             steps {
                 script {
-                    sh '''
-                        sed -i 's|build: .|image: ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${AWS_ECR_REPO}:${BUILD_NUMBER}|g' docker-compose.yml
-                        docker-compose down || true
-                        docker-compose up -d
-                    '''
+                    withAWS(region: "${AWS_REGION}", credentials: 'aws-credentials') {
+                        def awsAccountId = sh(script: 'aws sts get-caller-identity --query Account --output text', returnStdout: true).trim()
+                        
+                        sh """
+                            sed -i 's|build: .|image: ${awsAccountId}.dkr.ecr.${AWS_REGION}.amazonaws.com/${AWS_ECR_REPO}:${BUILD_NUMBER}|g' docker-compose.yml
+                            docker-compose down || true
+                            docker-compose up -d
+                        """
+                    }
                 }
             }
         }
@@ -74,7 +74,6 @@ pipeline {
                 script {
                     sh '''
                         docker system prune -f || true
-                        rm -f ~/.aws/credentials || true
                     '''
                 }
             }
