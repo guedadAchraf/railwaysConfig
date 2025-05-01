@@ -2,12 +2,11 @@ pipeline {
     agent any
     
     environment {
-        AWS_ACCOUNT_ID = credentials('AWS_ACCOUNT_ID')
-        AWS_REGION = 'us-east-1'  // Change this to your desired region
-        ECR_REPO_NAME = 'keycloak-railways'
-        ECS_CLUSTER_NAME = 'keycloak-cluster'
-        DOCKER_IMAGE_NAME = 'keycloak-railways'
-        DOCKER_IMAGE_TAG = "${BUILD_NUMBER}"
+        AWS_REGION = 'eu-north-1'  // Stockholm region
+        AWS_ACCOUNT_ID = credentials('aws-account-id')
+        AWS_ECR_REPO = 'keycloak-app'  // Your ECR repository name
+        DOCKER_IMAGE_TAG = "keycloak:${BUILD_NUMBER}"
+        KEYCLOAK_VERSION = '23.0.0'  // Set your desired Keycloak version
     }
     
     stages {
@@ -16,45 +15,16 @@ pipeline {
                 checkout scm
             }
         }
-
+        
         stage('Configure AWS CLI') {
             steps {
-                withAWS(credentials: 'aws-credentials', region: "${AWS_REGION}") {
-                    sh 'aws --version'
-                }
-            }
-        }
-        
-        stage('Create ECS Cluster if not exists') {
-            steps {
-                withAWS(credentials: 'aws-credentials', region: "${AWS_REGION}") {
-                    script {
-                        sh '''
-                            if ! aws ecs describe-clusters --clusters ${ECS_CLUSTER_NAME} --query 'clusters[0]' --output text > /dev/null 2>&1; then
-                                echo "Creating ECS cluster ${ECS_CLUSTER_NAME}"
-                                aws ecs create-cluster --cluster-name ${ECS_CLUSTER_NAME}
-                            else
-                                echo "ECS cluster ${ECS_CLUSTER_NAME} already exists"
-                            fi
-                        '''
-                    }
-                }
-            }
-        }
-        
-        stage('Create ECR Repository if not exists') {
-            steps {
-                withAWS(credentials: 'aws-credentials', region: "${AWS_REGION}") {
-                    script {
-                        sh '''
-                            if ! aws ecr describe-repositories --repository-names ${ECR_REPO_NAME} > /dev/null 2>&1; then
-                                echo "Creating ECR repository ${ECR_REPO_NAME}"
-                                aws ecr create-repository --repository-name ${ECR_REPO_NAME}
-                            else
-                                echo "ECR repository ${ECR_REPO_NAME} already exists"
-                            fi
-                        '''
-                    }
+                withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', 
+                                  credentialsId: 'aws-credentials',
+                                  accessKeyVariable: 'AWS_ACCESS_KEY_ID', 
+                                  secretKeyVariable: 'AWS_SECRET_ACCESS_KEY']]) {
+                    sh 'aws configure set region ${AWS_REGION}'
+                    sh 'aws configure set aws_access_key_id ${AWS_ACCESS_KEY_ID}'
+                    sh 'aws configure set aws_secret_access_key ${AWS_SECRET_ACCESS_KEY}'
                 }
             }
         }
@@ -62,24 +32,47 @@ pipeline {
         stage('Build Docker Image') {
             steps {
                 script {
-                    // Use sh command instead of docker.build for better control
-                    sh """
-                        docker build -t ${DOCKER_IMAGE_NAME}:${DOCKER_IMAGE_TAG} .
-                    """
+                    // Build Docker image with Keycloak version as build arg
+                    sh "docker build --build-arg KEYCLOAK_VERSION=${KEYCLOAK_VERSION} -t ${DOCKER_IMAGE_TAG} ."
                 }
             }
         }
         
         stage('Push to ECR') {
             steps {
-                withAWS(credentials: 'aws-credentials', region: "${AWS_REGION}") {
-                    script {
-                        sh '''
-                            aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com
-                            docker tag ${DOCKER_IMAGE_NAME}:${DOCKER_IMAGE_TAG} ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO_NAME}:${DOCKER_IMAGE_TAG}
-                            docker push ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO_NAME}:${DOCKER_IMAGE_TAG}
-                        '''
-                    }
+                script {
+                    // Authenticate Docker to ECR
+                    sh 'aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com'
+                    
+                    // Create the repository if it doesn't exist
+                    sh '''
+                        aws ecr describe-repositories --repository-names ${AWS_ECR_REPO} --region ${AWS_REGION} || \
+                        aws ecr create-repository --repository-name ${AWS_ECR_REPO} --region ${AWS_REGION}
+                    '''
+                    
+                    // Tag and push the image
+                    sh "docker tag ${DOCKER_IMAGE_TAG} ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${AWS_ECR_REPO}:${BUILD_NUMBER}"
+                    sh "docker tag ${DOCKER_IMAGE_TAG} ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${AWS_ECR_REPO}:latest"
+                    sh "docker push ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${AWS_ECR_REPO}:${BUILD_NUMBER}"
+                    sh "docker push ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${AWS_ECR_REPO}:latest"
+                }
+            }
+        }
+        
+        stage('Deploy with Docker Compose') {
+            steps {
+                script {
+                    // Update the docker-compose.yml file to use the ECR image
+                    sh """
+                    sed -i 's|build: .|image: ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${AWS_ECR_REPO}:${BUILD_NUMBER}|g' docker-compose.yml
+                    """
+                    
+                    // Deploy using docker-compose
+                    sh "docker-compose down || true"
+                    sh "docker-compose up -d"
+                    
+                    // Alternative: Deploy to ECS or other AWS container service
+                    // You can add additional steps here for ECS deployment if needed
                 }
             }
         }
@@ -87,20 +80,15 @@ pipeline {
     
     post {
         always {
-            script {
-                withAWS(credentials: 'aws-credentials', region: "${AWS_REGION}") {
-                    withEnv(["DOCKER_IMAGE_NAME=${env.DOCKER_IMAGE_NAME}",
-                            "DOCKER_IMAGE_TAG=${env.DOCKER_IMAGE_TAG}",
-                            "AWS_ACCOUNT_ID=${env.AWS_ACCOUNT_ID}",
-                            "AWS_REGION=${env.AWS_REGION}",
-                            "ECR_REPO_NAME=${env.ECR_REPO_NAME}"]) {
-                        sh '''
-                            docker rmi ${DOCKER_IMAGE_NAME}:${DOCKER_IMAGE_TAG} || true
-                            docker rmi ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO_NAME}:${DOCKER_IMAGE_TAG} || true
-                        '''
-                    }
-                }
-            }
+            // Clean up after build
+            sh 'docker system prune -f || true'
+            sh 'rm -f ~/.aws/credentials || true'
+        }
+        success {
+            echo "Successfully built and deployed Keycloak docker container"
+        }
+        failure {
+            echo "Failed to build or deploy Keycloak docker container"
         }
     }
 }

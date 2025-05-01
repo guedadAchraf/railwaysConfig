@@ -1,37 +1,34 @@
 {
-    "realm": "Ahssane-voyage",
-    "enabled": true,
-    "users": [
-      {
-        "username": "achraf",
-        "enabled": true,
-        "emailVerified": true,
-        "credentials": [
-          {
-            "type": "password",
-            "value": "achraf123",
-            "temporary": false
-          }
-        ],
-        "realmRoles": ["administrateur"]
-      }
-    ],
-    "roles": {
-      "realm": {
-        "administrateur": {
-          "description": "Admin role"
+  "realm": "Ahssane-voyage",
+  "enabled": true,
+  "users": [
+    {
+      "username": "achraf",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "achraf123",
+          "temporary": false
         }
+      ],
+      "realmRoles": ["administrateur"]
+    }
+  ],
+  "roles": {
+    "realm": {
+      "administrateur": {
+        "description": "Admin role"
       }
-    },
-    "clients": [
-      {
-        "clientId": "voyage-client",
-        "enabled": true,
-        "publicClient": true,
-        "redirectUris": ["*"],
-        "webOrigins": ["*"]
-      }
-    ],"webOrigins": [
+    }
+  },
+  "clients": [
+    {
+      "clientId": "voyage-client",
+      "enabled": true,
+      "redirectUris": ["*"],
+      "webOrigins": [
         "https://travel-agency-frontend-xi.vercel.app/",
         "http://localhost:4200"
       ],
@@ -39,8 +36,6 @@
       "standardFlowEnabled": true,
       "implicitFlowEnabled": false,
       "directAccessGrantsEnabled": true
-    
-    
+    }
+  ]
 }
-  
-  
