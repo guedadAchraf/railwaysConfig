@@ -11,6 +11,12 @@ pipeline {
     }
     
     stages {
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+
         stage('Configure AWS CLI') {
             steps {
                 withAWS(credentials: 'aws-credentials', region: "${AWS_REGION}") {
@@ -56,18 +62,7 @@ pipeline {
         stage('Build Docker Image') {
             steps {
                 script {
-                    docker.build("${DOCKER_IMAGE_NAME}:${// In Jenkins Pipeline Configuration
-pipeline {
-    agent any
-    stages {
-        stage('Checkout') {
-            steps {
-                checkout scm
-            }
-        }
-        // ... existing code ...
-    }
-}}")
+                    docker.build("${DOCKER_IMAGE_NAME}:${DOCKER_IMAGE_TAG}")
                 }
             }
         }
