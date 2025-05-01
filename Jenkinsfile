@@ -88,15 +88,17 @@ pipeline {
     post {
         always {
             script {
-                withEnv(["DOCKER_IMAGE_NAME=${DOCKER_IMAGE_NAME}",
-                        "DOCKER_IMAGE_TAG=${DOCKER_IMAGE_TAG}",
-                        "AWS_ACCOUNT_ID=${AWS_ACCOUNT_ID}",
-                        "AWS_REGION=${AWS_REGION}",
-                        "ECR_REPO_NAME=${ECR_REPO_NAME}"]) {
-                    sh '''
-                        docker rmi ${DOCKER_IMAGE_NAME}:${DOCKER_IMAGE_TAG} || true
-                        docker rmi ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO_NAME}:${DOCKER_IMAGE_TAG} || true
-                    '''
+                withAWS(credentials: 'aws-credentials', region: "${AWS_REGION}") {
+                    withEnv(["DOCKER_IMAGE_NAME=${env.DOCKER_IMAGE_NAME}",
+                            "DOCKER_IMAGE_TAG=${env.DOCKER_IMAGE_TAG}",
+                            "AWS_ACCOUNT_ID=${env.AWS_ACCOUNT_ID}",
+                            "AWS_REGION=${env.AWS_REGION}",
+                            "ECR_REPO_NAME=${env.ECR_REPO_NAME}"]) {
+                        sh '''
+                            docker rmi ${DOCKER_IMAGE_NAME}:${DOCKER_IMAGE_TAG} || true
+                            docker rmi ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO_NAME}:${DOCKER_IMAGE_TAG} || true
+                        '''
+                    }
                 }
             }
         }
