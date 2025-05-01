@@ -1,5 +1,5 @@
 pipeline {
-    agent any  // Changed from agent { label 'docker' }
+    agent any
     
     environment {
         AWS_REGION = 'eu-north-1'
@@ -9,6 +9,19 @@ pipeline {
     }
     
     stages {
+        stage('Verify Environment') {
+            steps {
+                script {
+                    sh '''
+                        echo "Checking required tools..."
+                        docker --version || { echo "Docker not found!"; exit 1 }
+                        aws --version || { echo "AWS CLI not found!"; exit 1 }
+                        docker-compose --version || echo "Warning: docker-compose not found"
+                    '''
+                }
+            }
+        }
+        
         stage('Checkout') {
             steps {
                 checkout scm
@@ -18,27 +31,39 @@ pipeline {
         stage('Build Docker Image') {
             steps {
                 script {
-                    // Verify Docker is available
-                    sh 'docker --version'
                     sh "docker build --build-arg KEYCLOAK_VERSION=${KEYCLOAK_VERSION} -t ${DOCKER_IMAGE_TAG} ."
+                }
+            }
+        }
+        
+        stage('Login to ECR') {
+            steps {
+                withAWS(credentials: 'aws-credentials', region: "${AWS_REGION}") {
+                    script {
+                        def accountId = sh(script: 'aws sts get-caller-identity --query Account --output text', returnStdout: true).trim()
+                        sh "aws ecr get-login-password | docker login --username AWS --password-stdin ${accountId}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+                    }
                 }
             }
         }
         
         stage('Push to ECR') {
             steps {
-                script {
-                    withAWS(region: "${AWS_REGION}", credentials: 'aws-credentials') {
-                        def awsAccountId = sh(script: 'aws sts get-caller-identity --query Account --output text', returnStdout: true).trim()
+                withAWS(credentials: 'aws-credentials', region: "${AWS_REGION}") {
+                    script {
+                        def accountId = sh(script: 'aws sts get-caller-identity --query Account --output text', returnStdout: true).trim()
+                        def ecrRepo = "${accountId}.dkr.ecr.${AWS_REGION}.amazonaws.com/${AWS_ECR_REPO}"
                         
                         sh """
-                            aws ecr get-login-password | docker login --username AWS --password-stdin ${awsAccountId}.dkr.ecr.${AWS_REGION}.amazonaws.com
+                            # Create repository if it doesn't exist
                             aws ecr describe-repositories --repository-names ${AWS_ECR_REPO} || \
                             aws ecr create-repository --repository-name ${AWS_ECR_REPO}
-                            docker tag ${DOCKER_IMAGE_TAG} ${awsAccountId}.dkr.ecr.${AWS_REGION}.amazonaws.com/${AWS_ECR_REPO}:${BUILD_NUMBER}
-                            docker tag ${DOCKER_IMAGE_TAG} ${awsAccountId}.dkr.ecr.${AWS_REGION}.amazonaws.com/${AWS_ECR_REPO}:latest
-                            docker push ${awsAccountId}.dkr.ecr.${AWS_REGION}.amazonaws.com/${AWS_ECR_REPO}:${BUILD_NUMBER}
-                            docker push ${awsAccountId}.dkr.ecr.${AWS_REGION}.amazonaws.com/${AWS_ECR_REPO}:latest
+                            
+                            # Tag and push images
+                            docker tag ${DOCKER_IMAGE_TAG} ${ecrRepo}:${BUILD_NUMBER}
+                            docker tag ${DOCKER_IMAGE_TAG} ${ecrRepo}:latest
+                            docker push ${ecrRepo}:${BUILD_NUMBER}
+                            docker push ${ecrRepo}:latest
                         """
                     }
                 }
@@ -47,12 +72,16 @@ pipeline {
         
         stage('Deploy with Docker Compose') {
             steps {
-                script {
-                    withAWS(region: "${AWS_REGION}", credentials: 'aws-credentials') {
-                        def awsAccountId = sh(script: 'aws sts get-caller-identity --query Account --output text', returnStdout: true).trim()
+                withAWS(credentials: 'aws-credentials', region: "${AWS_REGION}") {
+                    script {
+                        def accountId = sh(script: 'aws sts get-caller-identity --query Account --output text', returnStdout: true).trim()
+                        def ecrImage = "${accountId}.dkr.ecr.${AWS_REGION}.amazonaws.com/${AWS_ECR_REPO}:${BUILD_NUMBER}"
                         
                         sh """
-                            sed -i 's|build: .|image: ${awsAccountId}.dkr.ecr.${AWS_REGION}.amazonaws.com/${AWS_ECR_REPO}:${BUILD_NUMBER}|g' docker-compose.yml
+                            # Update compose file with new image
+                            sed -i 's|image: .*|image: ${ecrImage}|g' docker-compose.yml
+                            
+                            # Deploy
                             docker-compose down || true
                             docker-compose up -d
                         """
@@ -65,9 +94,16 @@ pipeline {
     post {
         always {
             script {
-                // Clean up Docker resources
+                echo "Cleaning up workspace"
                 sh 'docker system prune -f || true'
             }
+        }
+        success {
+            echo "Pipeline completed successfully!"
+        }
+        failure {
+            echo "Pipeline failed"
+            slackSend color: 'danger', message: "Pipeline failed: ${env.JOB_NAME} #${env.BUILD_NUMBER}"
         }
     }
 }
