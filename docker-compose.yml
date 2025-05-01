@@ -2,7 +2,7 @@ version: "3.8"
 
 services:
   keycloak:
-    build: .
+    image: ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${AWS_ECR_REPO}:${BUILD_NUMBER}
     ports:
       - "8080:8080"
     environment:
