@@ -21,7 +21,7 @@ pipeline {
                 withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', 
                                   credentialsId: 'aws-credentials',
                                   accessKeyVariable: 'AWS_ACCESS_KEY_ID', 
-                                  secretKeyVariable: 'AWS_SECRET_ACCESS_KEY']]) {
+                                  secretKeyVariable: 'AWS_SECRET_ACCESS_KEY']])
                     sh 'aws configure set region ${AWS_REGION}'
                     sh 'aws configure set aws_access_key_id ${AWS_ACCESS_KEY_ID}'
                     sh 'aws configure set aws_secret_access_key ${AWS_SECRET_ACCESS_KEY}'
@@ -80,9 +80,13 @@ pipeline {
     
     post {
         always {
-            // Clean up after build
-            sh 'docker system prune -f || true'
-            sh 'rm -f ~/.aws/credentials || true'
+            node('any') {  // Add node block here
+                script {
+                    // Clean up after build
+                    sh 'docker system prune -f || true'
+                    sh 'rm -f ~/.aws/credentials || true'
+                }
+            }
         }
         success {
             echo "Successfully built and deployed Keycloak docker container"
